@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIA - Staff Management Fixed</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    
+    <style>
+        :root { --cyan: #00f2ff; --bg: #0d0d0d; --card-bg: #151515; --gold: #ffcc00; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; }
+        .hidden { display: none !important; }
+
+        /* Login */
+        #loginPage { height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle, #1a1a1a 0%, #0d0d0d 100%); }
+        .login-card { background: #151515; padding: 40px; border-radius: 20px; border: 1px solid #222; width: 320px; text-align: center; }
+        .login-logo { width: 90px; margin-bottom: 20px; }
+        .login-card input { width: 100%; padding: 12px; margin-bottom: 15px; background: #050505; border: 1px solid #333; color: white; border-radius: 8px; box-sizing: border-box; }
+        .btn-login { width: 100%; padding: 12px; background: #555; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* UI Structure */
+        header { padding: 15px 5%; background: #1a1a1a; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .welcome-box { background: #222; padding: 5px 15px; border-radius: 5px; border: 1px solid #444; font-size: 13px; }
+        
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; padding: 40px 10%; }
+        .card { background: var(--card-bg); border: 1px solid #333; padding: 25px; border-radius: 12px; text-align: center; cursor: pointer; transition: 0.3s; }
+        .card:hover { border-color: var(--cyan); transform: translateY(-5px); }
+        .card i { font-size: 35px; display: block; margin-bottom: 10px; font-style: normal; }
+
+        .page { padding: 20px 5%; }
+        .admin-panel { background: #111; padding: 20px; border: 1px dashed #444; border-radius: 10px; margin-bottom: 20px; }
+        .back-btn { background: #333; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
+        
+        /* Staff List Style */
+        .data-row { background: #111; border-left: 4px solid var(--cyan); padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; flex-wrap: wrap; gap: 10px; }
+        .role-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 10px; text-transform: uppercase; font-weight: bold; }
+        .badge-chief { background: var(--gold); color: black; }
+        .badge-det { background: #333; color: #ccc; }
+
+        /* Rank Select */
+        .rank-select { background: #000; color: var(--cyan); border: 1px solid #444; padding: 5px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="loginPage">
+        <div class="login-card">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/2/25/Seal_of_the_Central_Intelligence_Agency.svg" class="login-logo">
+            <h2 style="color:#ccc;">CIA TERMINAL</h2>
+            <input type="text" id="userInput" placeholder="Tactical Name">
+            <input type="password" id="passInput" placeholder="Access Code">
+            <button class="btn-login" onclick="login()">AUTHORIZE</button>
+        </div>
+    </div>
+
+    <div id="mainUI" class="hidden">
+        <header>
+            <div class="welcome-box" id="userTag">Loading...</div>
+            <div style="font-weight:bold; letter-spacing:1px;">INVESTIGATION DEPT</div>
+            <button onclick="logout()" style="background:none; border:1px solid #f33; color:#f33; padding:5px 10px; border-radius:5px; cursor:pointer;">Logout</button>
+        </header>
+
+        <div id="homePage" class="page">
+            <div class="grid">
+                <div class="card" onclick="openPage('wantedPage')"><i>🎯</i>Wanted List</div>
+                <div class="card" onclick="openPage('tasksPage')"><i>📋</i>Tasks</div>
+                <div class="card" onclick="openPage('gangsPage')"><i>💀</i>Gangs</div>
+                <div class="card" onclick="openPage('staffPage')"><i>👥</i>Staff</div>
+                <div class="card" onclick="openPage('morsePage')"><i>📟</i>Morse</div>
+                <div class="card" onclick="openPage('queryPage')"><i>🔍</i>Inquiries</div>
+            </div>
+        </div>
+
+        <div id="staffPage" class="page hidden">
+            <button class="back-btn" onclick="openPage('homePage')">← Back</button>
+            <h2 style="color:var(--cyan); border-bottom:1px solid #333; padding-bottom:10px;">Personnel Management</h2>
+            <div id="staffDisplay"></div>
+        </div>
+
+        <div id="wantedPage" class="page hidden">
+            <button class="back-btn" onclick="openPage('homePage')">← Back</button>
+            <div id="wantedAdmin" class="admin-panel hidden">
+                <input type="text" id="wName" placeholder="Name">
+                <input type="text" id="wCrime" placeholder="Crime">
+                <button onclick="addData('wantedList', {name: wName.value, crime: wCrime.value})" class="btn-login" style="width:auto; padding:8px 20px;">Add</button>
+            </div>
+            <div id="wantedListDisplay" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:15px;"></div>
+        </div>
+
+        <div id="tasksPage" class="page hidden">
+            <button class="back-btn" onclick="openPage('homePage')">← Back</button>
+            <div id="taskAdmin" class="admin-panel hidden">
+                <input type="text" id="taskText" placeholder="Task description..." style="width:70%;">
+                <button onclick="addData('tasks', {text: taskText.value})" class="btn-login" style="width:auto; padding:8px 20px;">Post</button>
+            </div>
+            <div id="tasksDisplay"></div>
+        </div>
+
+        <div id="gangsPage" class="page hidden">
+            <button class="back-btn" onclick="openPage('homePage')">← Back</button>
+            <div id="gangAdmin" class="admin-panel hidden">
+                <input type="text" id="gName" placeholder="Organization Name">
+                <button onclick="addData('gangs', {name: gName.value})" class="btn-login" style="width:auto; padding:8px 20px;">Register</button>
+            </div>
+            <div id="gangsDisplay"></div>
+        </div>
+
+        <div id="queryPage" class="page hidden">
+            <button class="back-btn" onclick="openPage('homePage')">← Back</button>
+            <iframe src="https://docs.google.com/spreadsheets/d/13yE_Li5GXWQDvmew-OoNWUwVJGvOAvbfJZB4Agg9M9U/edit?rm=minimal" style="width:100%; height:75vh; border:none;"></iframe>
+        </div>
+
+        <div id="morsePage" class="page hidden">
+            <button class="back-btn" onclick="openPage('homePage')">← Back</button>
+            <textarea id="morseIn" oninput="translateMorse()" placeholder="Type here..." style="width:100%; height:100px; background:#000; color:var(--cyan); border:1px solid #333;"></textarea>
+            <div id="morseOut" style="font-size:24px; margin-top:20px;"></div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDCo1c37ccHxguy5MIaU_SFBRew-6lgD2s",
+            authDomain: "cia-final.firebaseapp.com",
+            databaseURL: "https://cia-final-default-rtdb.firebaseio.com/",
+            projectId: "cia-final",
+            storageBucket: "cia-final.firebasestorage.app",
+            messagingSenderId: "846223139348",
+            appId: "1:846223139348:web:a65a93c1eb766be2b4bd01"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let user = null;
+
+        function login() {
+            const name = document.getElementById('userInput').value.trim();
+            const pass = document.getElementById('passInput').value;
+            if(pass !== "cia20") return alert("ACCESS DENIED");
+
+            db.ref('users').once('value', snap => {
+                let found = null;
+                snap.forEach(c => { if(c.val().name === name) found = {id: c.key, ...c.val()}; });
+                if(name === "Brof Murphy") {
+                    user = { id: "admin_root", name: "Brof Murphy", role: "CIA Chief" };
+                    db.ref('users/admin_root').set(user);
+                } else if(found) user = found;
+                else {
+                    const ref = db.ref('users').push();
+                    user = { id: ref.key, name: name, role: "Detective" };
+                    ref.set(user);
+                }
+                localStorage.setItem('cia_user', JSON.stringify(user));
+                initApp();
+            });
+        }
+
+        function initApp() {
+            const saved = localStorage.getItem('cia_user');
+            if(!saved) return;
+            user = JSON.parse(saved);
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainUI').classList.remove('hidden');
+            document.getElementById('userTag').innerHTML = `${user.name} <span style="color:var(--gold)">[${user.role}]</span>`;
+            
+            if(user.role === "CIA Chief") {
+                document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('hidden'));
+            }
+            syncData();
+        }
+
+        function syncData() {
+            // Updated Staff Sync with Role Editing
+            db.ref('users').on('value', snap => {
+                const div = document.getElementById('staffDisplay');
+                if(!div) return;
+                div.innerHTML = "";
+                snap.forEach(c => {
+                    const u = c.val();
+                    const uid = c.key;
+                    const isChief = u.role === "CIA Chief";
+                    
+                    div.innerHTML += `
+                        <div class="data-row">
+                            <div style="flex:1;">
+                                <b style="color:white; font-size:16px;">${u.name}</b>
+                                <span class="role-badge ${isChief ? 'badge-chief' : 'badge-det'}">${u.role}</span>
+                            </div>
+                            
+                            ${user.role === "CIA Chief" ? `
+                                <select class="rank-select" onchange="updateRank('${uid}', this.value)">
+                                    <option value="" disabled selected>Change Rank</option>
+                                    <option value="CIA Chief">CIA Chief</option>
+                                    <option value="CIA Deputy">CIA Deputy</option>
+                                    <option value="Detective">Detective</option>
+                                </select>
+                                <button onclick="db.ref('users/${uid}').remove()" style="color:red; background:none; border:1px solid red; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;">Dismiss</button>
+                            ` : ''}
+                        </div>`;
+                });
+            });
+
+            // Standard Data Sync
+            db.ref('wantedList').on('value', snap => {
+                const d = document.getElementById('wantedListDisplay'); d.innerHTML = "";
+                snap.forEach(c => { d.innerHTML += `<div style="background:#111; padding:10px; border:1px solid #333; text-align:center;"><h4>${c.val().name}</h4><small>${c.val().crime}</small><br>${user.role === "CIA Chief" ? `<button onclick="db.ref('wantedList/${c.key}').remove()" style="color:red; background:none; border:none; cursor:pointer;">Remove</button>` : ''}</div>`; });
+            });
+
+            db.ref('tasks').on('value', snap => {
+                const d = document.getElementById('tasksDisplay'); d.innerHTML = "";
+                snap.forEach(c => { d.innerHTML += `<div class="data-row"><span>➤ ${c.val().text}</span>${user.role === "CIA Chief" ? `<button onclick="db.ref('tasks/${c.key}').remove()" style="color:var(--cyan); border:none; background:none; cursor:pointer;">DONE</button>` : ''}</div>`; });
+            });
+
+            db.ref('gangs').on('value', snap => {
+                const d = document.getElementById('gangsDisplay'); d.innerHTML = "";
+                snap.forEach(c => { d.innerHTML += `<div class="data-row"><span>💀 ${c.val().name}</span>${user.role === "CIA Chief" ? `<button onclick="db.ref('gangs/${c.key}').remove()" style="color:red; border:none; background:none; cursor:pointer;">X</button>` : ''}</div>`; });
+            });
+        }
+
+        // New Function to Update Rank
+        function updateRank(targetUid, newRole) {
+            if(!newRole) return;
+            db.ref('users/' + targetUid).update({ role: newRole })
+            .then(() => alert("Rank updated successfully."))
+            .catch(err => alert("Error: " + err.message));
+        }
+
+        function addData(path, data) { if(data.name || data.text) db.ref(path).push(data); document.querySelectorAll('input').forEach(i => i.value = ""); }
+        function openPage(id) { document.querySelectorAll('.page').forEach(p => p.classList.add('hidden')); document.getElementById(id).classList.remove('hidden'); }
+        function logout() { localStorage.removeItem('cia_user'); location.reload(); }
+        function translateMorse() {
+            const dict = {'a': '.-', 'b': '-...', 'c': '-.-.', 'd': '-..', 'e': '.', 'f': '..-.', 'g': '--.', 'h': '....', 'i': '..', 'j': '.---', 'k': '-.-', 'l': '.-..', 'm': '--', 'n': '-.', 'o': '---', 'p': '.--.', 'q': '--.-', 'r': '.-.', 's': '...', 't': '-', 'u': '..-', 'v': '...-', 'w': '.--', 'x': '-..-', 'y': '-.--', 'z': '--..', ' ': '/'};
+            const input = document.getElementById('morseIn').value.toLowerCase();
+            document.getElementById('morseOut').innerText = input.split('').map(char => dict[char] || char).join(' ');
+        }
+        window.onload = initApp;
+    </script>
+</body>
+</html>
